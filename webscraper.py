@@ -1,19 +1,22 @@
 from bs4 import BeautifulSoup
 import requests
+import pymongo
+import datetime
 
 def get_events(url):
     # Make a GET request to the URL.
     headers = {'User-Agent': 'Chrome/129.0.6668.70'}
     response = requests.get(url, headers=headers)
-    print(response.status_code)
-
     if response.status_code != 200:
         print("Error: Failed to get webpage content.")
         return
+    
+    client = pymongo.MongoClient("mongodb://localhost:27017/")
+    db = client["quest_db"]
+    collection = db["events"]
 
     # Parse the HTML content.
     soup = BeautifulSoup(response.content, 'html.parser')
-    print(soup)
     # Find all the elements containing event information.
     # You'll need to adjust this selector based on the HTML structure of the webpage.
     event_elements = soup.find_all('article', class_='tribe-events-calendar-list__event')
@@ -45,25 +48,30 @@ def get_events(url):
         if date_element:
             event['date'] = date_element.text.strip()
 
-        # Extract the date of the event (if available).
+        # Extract the image of the event (if available).
         image_element = event_element.find('img', class_='tribe-events-calendar-list__event-featured-image')
         if image_element:
             event['image'] = image_element['src']
 
+        event['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         events.append(event)
+        collection.insert_one(event)
 
+    # Close the connection
+    client.close()
     return events
 
-# Example usage:
-#url = "https://www.malcolmyards.market/public-events/"
-url = "https://surlybrewing.com/events/"
-#url = "https://gophersports.com/calendar"
-#url = "https://www.varsitytheater.com/shows"
-events = get_events(url)
 
-for event in events:
-  print(f"Title: {event.get('title')}")
-  print(f"Description: {event.get('description')}")
-  print(f"Date: {event.get('date')}")
-  print(f"Image: {event.get('image')}")
-  print("-" * 20)
+
+def main():
+    # Example usage:
+    #url = "https://www.malcolmyards.market/public-events/"
+    url = "https://surlybrewing.com/events/"
+    #url = "https://gophersports.com/calendar"
+    #url = "https://www.varsitytheater.com/shows"
+    get_events(url)
+
+if __name__ == "__main__":
+    main()
+    
+
