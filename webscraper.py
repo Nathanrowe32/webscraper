@@ -65,7 +65,7 @@ def get_gopher_sports(url):
     
     client = pymongo.MongoClient("mongodb://localhost:27017/")
     db = client["quest_db"]
-    collection = db["games"]
+    collection = db["events"]
 
     soup = BeautifulSoup(response.content, 'html.parser')
 
@@ -100,6 +100,8 @@ def get_gopher_sports(url):
         image_element = game_element.find('img', class_='object-contain h-[60px] w-[60px]')
         if image_element:
             game_data['image'] = image_element['src']
+        
+        game_data['url'] = url
 
         game_data['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         games.append(game_data)
@@ -108,6 +110,67 @@ def get_gopher_sports(url):
     # Close the connection
     client.close()
     return games
+
+def get_cedar_events(url):
+    # Make a GET request to the URL.
+    headers = {'User-Agent': 'Chrome/129.0.6668.70'}
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        print("Error: Failed to get webpage content.")
+        return
+    
+    client = pymongo.MongoClient("mongodb://localhost:27017/")
+    db = client["quest_db"]
+    collection = db["events"]
+
+    # Parse the HTML content.
+    soup = BeautifulSoup(response.content, 'html.parser')
+    # Find all the elements containing event information.
+    # You'll need to adjust this selector based on the HTML structure of the webpage.
+    event_elements = soup.find_all('div', class_='summary-item-record-type-event')
+
+    result_count = 0
+    for result in event_elements:
+        result_count += 1
+    print("Result count:", result_count)
+    # Extract event information from each element.
+    events = []
+    for event_element in event_elements:
+        event = {}
+
+        # Extract the title of the event.
+        title_element = event_element.find('a', class_='summary-title-link')
+        if title_element:
+            event['title'] = title_element.text.strip()
+
+        # Extract the description of the event (if available).
+        description_element = event_element.find('div', class_='summary-excerpt')
+        if description_element:
+            # Extract the text from the p element inside the div
+            event['description'] = description_element.find('p').text
+
+        # Extract the date of the event (if available).
+        date_element = event_element.find('time', class_='summary-metadata-item summary-metadata-item--date')
+        if date_element:
+            event['date'] = date_element.text.strip()
+
+        # Extract the date of the event (if available).
+        time_element = event_element.find('span', class_='event-time-localized')
+        if time_element:
+            event['time'] = time_element.text.strip()
+
+        # Extract the image of the event (if available).
+        image_element = event_element.find('img', class_='summary-thumbnail-image loaded')
+        if image_element:
+            event['image'] = image_element['src']
+
+        event['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        events.append(event)
+        collection.insert_one(event)
+
+    # Close the connection
+    client.close()
+    return events
 
 
 def main():
@@ -125,12 +188,15 @@ def main():
         "https://gophersports.com/sports/mens-ice-hockey/schedule"
     ]
     
-    
     for event_url in event_urls:
         get_events(event_url)
 
     for game_url in game_urls:
         get_gopher_sports(game_url)
+
+    url = "https://www.thecedar.org/"
+    get_cedar_events(url)
+
 
 if __name__ == "__main__":
     main()
